@@ -10,6 +10,60 @@ router.use((req, res, next) => {
     next();
   });
 
+  router.get('/user-notifications', checkToken, async (req, res) => {
+    try {
+      const userId = req.user.userId;
+      
+      // Get blocked notifications (no group membership check needed)
+      const [blocked] = await pool.query(
+        `SELECT 
+          b.id,
+          g.group_name,
+          'blocked' as type,
+          b.blocked_at as timestamp,
+          b.reason,
+          u.username as admin_name
+         FROM blocked_members b
+         JOIN groups g ON b.group_id = g.id
+         JOIN users u ON b.blocked_by = u.id
+         WHERE b.user_id = ? AND b.notification_read = 0
+         ORDER BY b.blocked_at DESC`,
+        [userId]
+      );
+
+      // Get removal notifications (no group membership check needed)
+      const [removed] = await pool.query(
+        `SELECT 
+          r.id,
+          g.group_name,
+          'removed' as type,
+          r.removed_at as timestamp,
+          r.reason,
+          u.username as admin_name
+         FROM member_removals r
+         JOIN groups g ON r.group_id = g.id
+         JOIN users u ON r.removed_by = u.id
+         WHERE r.user_id = ? AND r.notification_read = 0
+         ORDER BY r.removed_at DESC`,
+        [userId]
+      );
+
+      const notifications = [...blocked, ...removed]
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      return res.json({
+        success: 1,
+        notifications
+      });
+    } catch (err) {
+      console.error('Get notifications error:', err);
+      return res.status(500).json({
+        success: 0,
+        message: "Failed to get notifications"
+      });
+    }
+  });
+
   router.post('/test-invite', (req, res) => {
     console.log('Test invite route hit');
     res.json({ success: true });
@@ -340,60 +394,6 @@ async (req, res) => {
     return res.status(500).json({
       success: 0,
       message: "Failed to check blocked status"
-    });
-  }
-});
-
-router.get('/notifications', checkToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    
-    // Get blocked notifications
-    const [blocked] = await pool.query(
-      `SELECT 
-        b.id,
-        g.group_name,
-        'blocked' as type,
-        b.blocked_at as timestamp,
-        b.reason,
-        u.username as admin_name
-       FROM blocked_members b
-       JOIN groups g ON b.group_id = g.id
-       JOIN users u ON b.blocked_by = u.id
-       WHERE b.user_id = ? AND b.notification_read = 0
-       ORDER BY b.blocked_at DESC`,
-      [userId]
-    );
-
-    // Get removal notifications
-    const [removed] = await pool.query(
-      `SELECT 
-        r.id,
-        g.group_name,
-        'removed' as type,
-        r.removed_at as timestamp,
-        r.reason,
-        u.username as admin_name
-       FROM member_removals r
-       JOIN groups g ON r.group_id = g.id
-       JOIN users u ON r.removed_by = u.id
-       WHERE r.user_id = ? AND r.notification_read = 0
-       ORDER BY r.removed_at DESC`,
-      [userId]
-    );
-
-    const notifications = [...blocked, ...removed]
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-    return res.json({
-      success: 1,
-      notifications
-    });
-  } catch (err) {
-    console.error('Get notifications error:', err);
-    return res.status(500).json({
-      success: 0,
-      message: "Failed to get notifications"
     });
   }
 });
