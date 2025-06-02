@@ -1,6 +1,6 @@
 <template>
   <div class="fixed-container">
-    <navigation/>
+    <navigation />
     
     <div class="group-management-container">
       <div class="centered-content">
@@ -69,8 +69,6 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
   <div class="notifications-container" v-if="notifications.length > 0">
   <h3 class="notifications-title">
     <i class="fas fa-bell"></i> Notifications
@@ -105,6 +103,8 @@
     </div>
   </div>
 </div>
+</div>
+</div>
   </template>
 
   <script>
@@ -131,33 +131,43 @@
      async created() {
       this.preventAutoRedirect = this.$route.query.fromGroup === 'true';
 
-     await this.fetchUserGroups();
-     await this.fetchNotifications();
-    if (this.$route.query.fromGroup && !this.preventAutoRedirect) {
-      this.forceShow = true;
-    }
-  },
+      await this.fetchUserGroups();
+      await this.fetchNotifications();
+      
+      if (this.$route.query.fromGroup && !this.preventAutoRedirect) {
+        this.forceShow = true;
+      }
+    },
    
      methods: {
-
       async fetchNotifications() {
-    try {
-      const response = await this.$axios.get('/api/grp_expenses/notifications', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        try {
+          const response = await this.$axios.get('/api/grp_expenses/user-notifications', {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+            }
+          });
+          
+          if (response.data.success) {
+            this.notifications = response.data.notifications.map(notif => ({
+              ...notif,
+              timestamp: new Date(notif.timestamp)
+            }));
+          } else {
+            // Handle cases where API returns success:0
+            console.warn('Notifications API warning:', response.data.message);
+          }
+        } catch (err) {
+          console.error('Error fetching notifications:', err.response?.data || err.message);
+          // Show user-friendly message
+          this.$notify({
+            title: 'Error',
+            message: 'Could not load notifications',
+            type: 'error',
+            duration: 5000
+          });
         }
-      });
-      
-      if (response.data.success) {
-        this.notifications = response.data.notifications.map(notif => ({
-          ...notif,
-          timestamp: new Date(notif.timestamp)
-        }));
-      }
-    } catch (err) {
-      console.error('Error fetching notifications:', err);
-    }
-  },
+      },
   
   formatTimeAgo(date) {
     const now = new Date();
@@ -819,4 +829,5 @@
      }
    }
    </style>
+      
       
