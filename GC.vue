@@ -71,6 +71,40 @@
       </div>
     </div>
   </div>
+  <div class="notifications-container" v-if="notifications.length > 0">
+  <h3 class="notifications-title">
+    <i class="fas fa-bell"></i> Notifications
+  </h3>
+  <div class="notification-list">
+    <div v-for="(notification, index) in notifications" :key="index" 
+         class="notification-item" :class="notification.type">
+      <div class="notification-header">
+        <i class="fas" :class="{
+          'fa-ban': notification.type === 'blocked',
+          'fa-user-minus': notification.type === 'removed'
+        }"></i>
+        <span class="notification-type">
+          {{ notification.type === 'blocked' ? 'Blocked' : 'Removed' }}
+        </span>
+        <span class="notification-time">
+          {{ formatTimeAgo(notification.timestamp) }}
+        </span>
+        <button @click="dismissNotification(index)" class="dismiss-btn">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="notification-content">
+        <p>From group: <strong>{{ notification.groupName }}</strong></p>
+        <p v-if="notification.reason" class="notification-reason">
+          Reason: <em>"{{ notification.reason }}"</em>
+        </p>
+        <p v-else class="notification-reason">
+          No reason provided
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
   </template>
 
   <script>
@@ -81,6 +115,7 @@
     components: { Navigation },
     data() {
       return {
+        notifications: [],
         userGroups: [],
         activeTab: 'create',
         groupName: '',
@@ -97,12 +132,61 @@
       this.preventAutoRedirect = this.$route.query.fromGroup === 'true';
 
      await this.fetchUserGroups();
+     await this.fetchNotifications();
     if (this.$route.query.fromGroup && !this.preventAutoRedirect) {
       this.forceShow = true;
     }
   },
    
      methods: {
+
+      async fetchNotifications() {
+    try {
+      const response = await this.$axios.get('/api/grp_expenses/notifications', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
+      });
+      
+      if (response.data.success) {
+        this.notifications = response.data.notifications.map(notif => ({
+          ...notif,
+          timestamp: new Date(notif.timestamp)
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    }
+  },
+  
+  formatTimeAgo(date) {
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} min ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    
+    const days = Math.floor(hours / 24);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  },
+  
+  async dismissNotification(index) {
+    const notification = this.notifications[index];
+    try {
+      await this.$axios.delete(`/api/grp_expenses/notifications/${notification.id}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
+      });
+      this.notifications.splice(index, 1);
+    } catch (err) {
+      console.error('Error dismissing notification:', err);
+    }
+  },
 
        async fetchUserGroups() {
        try {
@@ -234,6 +318,24 @@
    
            this.isLoading = true;
            this.error = '';
+
+           const blockedCheck = await this.$axios.get(
+      `/api/grp_expenses/groups/check-blocked/${this.groupCodeInput}`,
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('jsontoken')}`
+        }
+      }
+    );
+
+    if (blockedCheck.data.isBlocked) {
+      let message = 'You are blocked from joining this group';
+      if (blockedCheck.data.reason) {
+        message += `. Reason: ${blockedCheck.data.reason}`;
+      }
+      this.error = message;
+      return;
+    }
  
            const response = await this.$axios.post(
        '/api/grp_expenses/join',
@@ -306,6 +408,90 @@
    </script>
    
    <style scoped>
+   .notifications-container {
+  margin-top: 2rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  padding: 1.5rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.notifications-title {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.notification-item {
+  padding: 1rem;
+  border-radius: 6px;
+  border-left: 4px solid;
+}
+
+.notification-item.blocked {
+  background: #fff0f0;
+  border-color: #ff6b6b;
+}
+
+.notification-item.removed {
+  background: #fff9f0;
+  border-color: #ffb347;
+}
+
+.notification-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.notification-type {
+  flex-grow: 1;
+}
+
+.notification-time {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.notification-content {
+  font-size: 0.9rem;
+}
+
+.notification-reason {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(255,255,255,0.7);
+  border-radius: 4px;
+}
+
+.dismiss-btn {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.dismiss-btn:hover {
+  color: #666;
+}
+
+
+
 .back-button {
   width: 100%;
   margin-top: 10px;
@@ -633,3 +819,4 @@
      }
    }
    </style>
+      
