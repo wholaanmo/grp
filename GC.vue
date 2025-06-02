@@ -93,6 +93,10 @@
       </div>
       <div class="notification-content">
         <p>From group: <strong>{{ notification.groupName }}</strong></p>
+        <p class="notification-action">
+          {{ notification.type === 'blocked' ? 'Blocked' : 'Removed' }} by: 
+          <strong>{{ notification.type === 'blocked' ? notification.blocked_by_name : notification.removed_by_name }}</strong>
+        </p>
         <p v-if="notification.reason" class="notification-reason">
           Reason: <em>"{{ notification.reason }}"</em>
         </p>
@@ -486,6 +490,12 @@
   padding: 0.5rem;
   background: rgba(255,255,255,0.7);
   border-radius: 4px;
+}
+
+.notification-action {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
 }
 
 .dismiss-btn {
